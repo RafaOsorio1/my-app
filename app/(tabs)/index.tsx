@@ -2,10 +2,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { Button, StyleSheet, Text, TextInput, View } from "react-native";
 import { io, Socket } from "socket.io-client";
 
-const URL = "https://api.stg.nclarity.com";
+const URL = "THE_URL_OF_YOUR_API";
 
-const token =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImVtYWlsIjoicnJvZGVsb0BuY2xhcml0eS5jb20iLCJpZCI6NzYsInByb2ZpbGUiOiJPcHNVc2VyIiwidXNlcl9pZCI6NzYsImRpc3BsYXluYW1lIjoiUmFmYWVsIFJvZGVsbyIsInVzZXJuYW1lIjoicnJvZGVsb0BuY2xhcml0eS5jb20iLCJyb2xlIjoiQWRtaW5pc3RyYXRvciIsImlzQWRtaW4iOnRydWUsImlzQ3VzdG9tZXJTdWNjZXNzIjpmYWxzZSwiZ3JvdXBfaWQiOjk4OSwiY29tcElEIjowLCJzaWduVXBTdGFtcCI6MTcxMjM0MTMwMn0sImV4cGlyZXNJbiI6IjI0aCIsImlhdCI6MTc3Mzc2Mzk2OCwiZXhwIjoxNzczODUwMzY4fQ.ksdq6oBs203sCaC2FMpE9xWdZhvsZ77UMfHaZTzTk9E";
+const token = "YOUR_TOKEN_HERE";
 
 export default function App() {
   const socketRef = useRef<Socket | null>(null);
