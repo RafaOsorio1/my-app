@@ -1,98 +1,224 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useEffect, useRef, useState } from "react";
+import { Button, StyleSheet, Text, TextInput, View } from "react-native";
+import { io, Socket } from "socket.io-client";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const URL = "https://api.stg.nclarity.com";
 
-export default function HomeScreen() {
+const token =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImVtYWlsIjoicnJvZGVsb0BuY2xhcml0eS5jb20iLCJpZCI6NzYsInByb2ZpbGUiOiJPcHNVc2VyIiwidXNlcl9pZCI6NzYsImRpc3BsYXluYW1lIjoiUmFmYWVsIFJvZGVsbyIsInVzZXJuYW1lIjoicnJvZGVsb0BuY2xhcml0eS5jb20iLCJyb2xlIjoiQWRtaW5pc3RyYXRvciIsImlzQWRtaW4iOnRydWUsImlzQ3VzdG9tZXJTdWNjZXNzIjpmYWxzZSwiZ3JvdXBfaWQiOjk4OSwiY29tcElEIjowLCJzaWduVXBTdGFtcCI6MTcxMjM0MTMwMn0sImV4cGlyZXNJbiI6IjI0aCIsImlhdCI6MTc3Mzc2Mzk2OCwiZXhwIjoxNzczODUwMzY4fQ.ksdq6oBs203sCaC2FMpE9xWdZhvsZ77UMfHaZTzTk9E";
+
+export default function App() {
+  const socketRef = useRef<Socket | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [connected, setConnected] = useState(false);
+  const [lastMessage, setLastMessage] = useState<string>("Ningún mensaje aún");
+  const [messageCount, setMessageCount] = useState<number>(0);
+  const [deviceId, setDeviceId] = useState("T00001");
+
+  const log = (msg: any) => {
+    console.log(msg);
+    let textMsg = "";
+
+    try {
+      textMsg = typeof msg === "string" ? msg : JSON.stringify(msg);
+      if (textMsg.length > 200) textMsg = textMsg.substring(0, 200) + "...";
+    } catch {
+      textMsg = "[Log Error]";
+    }
+
+    const time = new Date().toLocaleTimeString();
+    setLastMessage(`[${time}] ${textMsg}`);
+    setMessageCount((prev) => prev + 1);
+  };
+
+  const connect = () => {
+    if (socketRef.current?.connected) {
+      log("already connected");
+      return;
+    }
+
+    log("connecting...");
+
+    const socket = io(URL, {
+      path: "/socket.io",
+      transports: ["websocket"],
+      auth: { token },
+
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+    });
+
+    socket.on("connect", () => {
+      setConnected(true);
+      log(`connected: ${socket.id}`);
+
+      socket.emit("subscribe", { deviceId }, (ack: any) => {
+        log({ ack });
+      });
+    });
+
+    socket.on("disconnect", (reason) => {
+      setConnected(false);
+      log(`disconnect: ${reason}`);
+    });
+
+    socket.on("connect_error", (err) => {
+      log(`connect_error: ${err.message}`);
+    });
+
+    socket.on("device:data", (data) => {
+      log({ event: "device:data", data });
+    });
+
+    socket.onAny((event, ...args) => {
+      log({ event, args });
+    });
+
+    socketRef.current = socket;
+  };
+
+  const subscribeDevice = () => {
+    if (!socketRef.current?.connected) {
+      log("socket not connected");
+      return;
+    }
+
+    if (!deviceId) {
+      log("deviceId is empty");
+      return;
+    }
+
+    setDeviceId(deviceId);
+
+    log(`sending subscribe for ${deviceId}...`);
+
+    socketRef.current.emit("subscribe", { deviceId }, (ack: any) => {
+      log({ ack });
+    });
+  };
+
+  const unsubscribeDevice = () => {
+    if (!socketRef.current?.connected) {
+      log("socket not connected");
+      return;
+    }
+
+    socketRef.current.emit("unsubscribe", { deviceId }, (ack: any) => {
+      log({ ack });
+    });
+
+    log(`unsubscribe request sent for ${deviceId}`);
+  };
+
+  const disconnect = () => {
+    if (!socketRef.current) {
+      log("not connected");
+      return;
+    }
+
+    socketRef.current.disconnect();
+    socketRef.current = null;
+    setConnected(false);
+
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, []);
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <View style={styles.container}>
+      <Text style={styles.title}>Socket.IO Test</Text>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      <TextInput
+        style={styles.input}
+        placeholder="Device ID"
+        value={deviceId}
+        onChangeText={setDeviceId}
+      />
+
+      <Button title="Connect" onPress={connect} />
+
+      <View style={{ height: 10 }} />
+
+      <Button title="Subscribe" onPress={subscribeDevice} />
+
+      <View style={{ height: 10 }} />
+
+      <Button title="Unsubscribe" onPress={unsubscribeDevice} />
+
+      <View style={{ height: 10 }} />
+
+      <Button title="Disconnect" color="red" onPress={disconnect} />
+
+      <Text style={styles.status}>
+        Status: {connected ? "CONNECTED" : "DISCONNECTED"}
+      </Text>
+
+      <View style={styles.logBox}>
+        <Text style={styles.logTitle}>
+          Último mensaje recibido (Total: {messageCount}):
+        </Text>
+        <Text style={styles.log}>{lastMessage}</Text>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    padding: 40,
+    paddingTop: 80,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  title: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 20,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  input: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    padding: 10,
+    marginBottom: 15,
+    borderRadius: 5,
+    color: "#ffffff",
+  },
+  status: {
+    marginVertical: 20,
+    fontWeight: "bold",
+  },
+  logBox: {
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    padding: 10,
+    minHeight: 80,
+  },
+  logTitle: {
+    fontWeight: "bold",
+    marginBottom: 5,
+    color: "#ffffff",
+  },
+  log: {
+    fontSize: 12,
+    color: "#cccccc",
   },
 });
