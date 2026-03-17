@@ -44,6 +44,7 @@ export default function App() {
       transports: ["websocket"],
       auth: { token },
 
+      //This is to reconnect if the connection is lost
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
@@ -54,6 +55,7 @@ export default function App() {
       setConnected(true);
       log(`connected: ${socket.id}`);
 
+      //Subscribe to device on the event "connect" for the reconnection
       socket.emit("subscribe", { deviceId }, (ack: any) => {
         log({ ack });
       });
@@ -121,11 +123,6 @@ export default function App() {
     socketRef.current.disconnect();
     socketRef.current = null;
     setConnected(false);
-
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
   };
 
   useEffect(() => {
@@ -133,11 +130,6 @@ export default function App() {
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
-      }
-
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
       }
     };
   }, []);
